@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Biblioteca de Exercícios Wger</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f7fa;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px 0;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #666;
+        }
+        
+        .loading {
+            text-align: center;
+            font-size: 1.2rem;
+            margin: 50px 0;
+        }
+        
+        .exercise-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .exercise-card {
+            background-color: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease-in-out;
+        }
+        
+        .exercise-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .exercise-image {
+            width: 100%;
+            height: 200px;
+            background-color: #eee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .exercise-image img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .exercise-info {
+            padding: 20px;
+        }
+        
+        .exercise-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .muscle-group {
+            display: inline-block;
+            background-color: #e6f7ff;
+            color: #0080ff;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-bottom: 15px;
+        }
+        
+        .exercise-description {
+            color: #666;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        .error-message {
+            text-align: center;
+            color: #ff4d4d;
+            font-size: 1.2rem;
+            margin: 30px 0;
+        }
+        
+        @media (max-width: 768px) {
+            .exercise-grid {
+                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .exercise-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Biblioteca de Exercícios</h1>
+            <p class="subtitle">Descubra exercícios eficazes para o seu treino</p>
+        </header>
+        
+        <div id="loading" class="loading">Carregando exercícios...</div>
+        <div id="error" class="error-message" style="display: none;"></div>
+        <div id="exercises" class="exercise-grid"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const exercisesContainer = document.getElementById('exercises');
+            const loadingElement = document.getElementById('loading');
+            const errorElement = document.getElementById('error');
+            
+            // Fetch exercises from the Wger API
+            async function fetchExercises() {
+                try {
+                    // Get the first 10 exercises
+                    const response = await fetch('https://wger.de/api/v2/exercise/?limit=10&language=2');
+                    if (!response.ok) {
+                        throw new Error('Falha ao buscar exercícios');
+                    }
+                    
+                    const data = await response.json();
+                    loadingElement.style.display = 'none';
+                    
+                    if (data.results && data.results.length > 0) {
+                        // Pré-carregue informações sobre músculos
+                        const musclesResponse = await fetch('https://wger.de/api/v2/muscle/');
+                        const musclesData = await musclesResponse.json();
+                        const muscles = musclesData.results || [];
+                        
+                        displayExercises(data.results, muscles);
+                    } else {
+                        throw new Error('Nenhum exercício encontrado');
+                    }
+                } catch (error) {
+                    loadingElement.style.display = 'none';
+                    errorElement.textContent = error.message;
+                    errorElement.style.display = 'block';
+                    console.error('Erro ao buscar exercícios:', error);
+                }
+            }
+            
+            // Fetch image for a specific exercise
+            async function fetchExerciseImage(exerciseId) {
+                try {
+                    const response = await fetch(`https://wger.de/api/v2/exerciseimage/?exercise=${exerciseId}`);
+                    if (!response.ok) {
+                        return null;
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (data.results && data.results.length > 0) {
+                        return data.results[0].image;
+                    }
+                    return null;
+                } catch (error) {
+                    console.error(`Erro ao buscar imagem para o exercício ${exerciseId}:`, error);
+                    return null;
+                }
+            }
+            
+            // Fetch exercise muscles
+            async function fetchExerciseMuscles(exerciseId) {
+                try {
+                    const response = await fetch(`https://wger.de/api/v2/exercise/${exerciseId}`);
+                    if (!response.ok) {
+                        return 'Músculos diversos';
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (data.muscles && data.muscles.length > 0) {
+                        return data.muscles[0].name_en || 'Músculos diversos';
+                    }
+                    return 'Músculos diversos';
+                } catch (error) {
+                    console.error(`Erro ao buscar músculos para o exercício ${exerciseId}:`, error);
+                    return 'Músculos diversos';
+                }
+            }
+            
+            // Display exercises in the UI
+            async function displayExercises(exercises, muscles) {
+                exercisesContainer.innerHTML = '';
+                
+                for (const exercise of exercises) {
+                    // Buscar imagem e grupo muscular para este exercício
+                    const imagePromise = fetchExerciseImage(exercise.id);
+                    const musclePromise = fetchExerciseMuscles(exercise.id);
+                    
+                    // Esperar ambas as promessas serem resolvidas
+                    const [imageUrl, muscleGroup] = await Promise.all([imagePromise, musclePromise]);
+                    
+                    const card = document.createElement('div');
+                    card.className = 'exercise-card';
+                    
+                    // Create the image section
+                    const imageSection = document.createElement('div');
+                    imageSection.className = 'exercise-image';
+                    
+                    if (imageUrl) {
+                        const img = document.createElement('img');
+                        img.src = imageUrl;
+                        img.alt = exercise.name;
+                        imageSection.appendChild(img);
+                    } else {
+                        imageSection.textContent = 'Imagem não disponível';
+                    }
+                    
+                    // Create the info section
+                    const infoSection = document.createElement('div');
+                    infoSection.className = 'exercise-info';
+                    
+                    const name = document.createElement('h3');
+                    name.className = 'exercise-name';
+                    name.textContent = exercise.name;
+                    
+                    const muscleGroupElement = document.createElement('span');
+                    muscleGroupElement.className = 'muscle-group';
+                    muscleGroupElement.textContent = muscleGroup;
+                    
+                    const description = document.createElement('div');
+                    description.className = 'exercise-description';
+                    description.innerHTML = exercise.description || 'Descrição não disponível.';
+                    
+                    // Assemble the card
+                    infoSection.appendChild(name);
+                    infoSection.appendChild(muscleGroupElement);
+                    infoSection.appendChild(description);
+                    
+                    card.appendChild(imageSection);
+                    card.appendChild(infoSection);
+                    
+                    exercisesContainer.appendChild(card);
+                }
+            }
+            
+            // Start fetching exercises when the page loads
+            fetchExercises();
+        });
+    </script>
+</body>
+</html> 
